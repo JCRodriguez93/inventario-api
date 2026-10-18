@@ -1,0 +1,368 @@
+openapi: 3.0.3
+info:
+  title: API de Gestión de Inventario
+  description: |
+    API REST para el control de stock multi-almacén: referencias (artículos),
+    niveles de stock por almacén, movimientos de entrada/salida y alertas de
+    reposición.
+
+    El contrato es la fuente de verdad del proyecto: las interfaces de los
+    controllers y los modelos de la API se generan a partir de este fichero
+    (openapi-generator), y en código solo conviven entidades JPA + mappers
+    MapStruct. No hay DTOs escritos a mano.
+  version: 1.0.0
+servers:
+  - url: /
+    description: Servidor local
+tags:
+  - name: Referencias
+    description: Artículos del inventario y su stock mínimo
+  - name: Stock
+    description: Cantidades disponibles por almacén
+  - name: Movimientos
+    description: Entradas y salidas de stock
+  - name: Alertas
+    description: Referencias por debajo de su stock mínimo
+paths:
+  /api/v1/referencias:
+    get:
+      tags: [Referencias]
+      operationId: getReferencias
+      summary: Lista todas las referencias del inventario
+      responses:
+        '200':
+          description: Listado de referencias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Referencia'
+        '500':
+          $ref: '#/components/responses/ErrorRespuesta'
+    post:
+      tags: [Referencias]
+      operationId: createReferencia
+      summary: Crea una referencia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Referencia'
+      responses:
+        '201':
+          description: Referencia creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referencia'
+        '400':
+          $ref: '#/components/responses/ErrorRespuesta'
+        '409':
+          description: Ya existe una referencia con ese SKU
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/ErrorRespuesta'
+  /api/v1/referencias/{sku}:
+    put:
+      tags: [Referencias]
+      operationId: updateReferencia
+      summary: Actualiza una referencia existente
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: SKU de la referencia
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Referencia'
+      responses:
+        '200':
+          description: Referencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referencia'
+        '400':
+          $ref: '#/components/responses/ErrorRespuesta'
+        '404':
+          $ref: '#/components/responses/ErrorRespuesta'
+  /api/v1/stock/{sku}:
+    get:
+      tags: [Stock]
+      operationId: getStockPorSku
+      summary: Cantidades de una referencia en cada almacén
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: SKU de la referencia
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Nivel de stock por almacén
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NivelStock'
+        '404':
+          $ref: '#/components/responses/ErrorRespuesta'
+  /api/v1/movimientos:
+    get:
+      tags: [Movimientos]
+      operationId: getMovimientos
+      summary: Historial de movimientos paginado
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Índice de página (base 0)
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          required: false
+          description: Tamaño de página
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        '200':
+          description: Página de movimientos (ordenados del más reciente al más antiguo)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaMovimientos'
+        '500':
+          $ref: '#/components/responses/ErrorRespuesta'
+    post:
+      tags: [Movimientos]
+      operationId: createMovimiento
+      summary: Registra una entrada o una salida de stock
+      description: |
+        Una `ENTRADA` suma cantidad al almacén indicado; una `SALIDA` la resta.
+        Si no hay stock suficiente en ese almacén se devuelve **409 Conflict**.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Movimiento'
+      responses:
+        '201':
+          description: Movimiento registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Movimiento'
+        '400':
+          $ref: '#/components/responses/ErrorRespuesta'
+        '404':
+          $ref: '#/components/responses/ErrorRespuesta'
+        '409':
+          description: Stock insuficiente en el almacén para la salida solicitada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/ErrorRespuesta'
+  /api/v1/movimientos/{id}:
+    get:
+      tags: [Movimientos]
+      operationId: getMovimientoPorId
+      summary: Detalle de un movimiento
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador del movimiento
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Movimiento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Movimiento'
+        '404':
+          $ref: '#/components/responses/ErrorRespuesta'
+  /api/v1/alertas:
+    get:
+      tags: [Alertas]
+      operationId: getAlertas
+      summary: Referencias cuyo stock total está por debajo del mínimo
+      responses:
+        '200':
+          description: Lista de referencias en alerta de reposición
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alerta'
+        '500':
+          $ref: '#/components/responses/ErrorRespuesta'
+components:
+  responses:
+    ErrorRespuesta:
+      description: Error estandarizado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    Referencia:
+      type: object
+      required:
+        - sku
+        - nombre
+      properties:
+        sku:
+          type: string
+          minLength: 1
+          description: Código único del artículo
+          example: TORN-M6-100
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre descriptivo del artículo
+          example: Tornillo M6 x 100
+        stockMinimo:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+          description: Cantidad mínima que debe haber en total antes de generar alerta
+          example: 100
+    NivelStock:
+      type: object
+      required:
+        - sku
+        - almacen
+        - cantidad
+      properties:
+        sku:
+          type: string
+        almacen:
+          type: string
+          example: CENTRAL
+        cantidad:
+          type: integer
+          format: int32
+          minimum: 0
+    Movimiento:
+      type: object
+      required:
+        - tipo
+        - sku
+        - almacen
+        - cantidad
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Identificador asignado por el servidor
+        fecha:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Instante del registro, asignado por el servidor
+        tipo:
+          $ref: '#/components/schemas/TipoMovimiento'
+        sku:
+          type: string
+          description: Referencia afectada
+        almacen:
+          type: string
+          description: Almacén donde entra o sale la mercancía
+          example: CENTRAL
+        cantidad:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Unidades movidas
+    TipoMovimiento:
+      type: string
+      enum:
+        - ENTRADA
+        - SALIDA
+      description: ENTRADA suma stock, SALIDA lo resta
+    PaginaMovimientos:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Movimiento'
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    Alerta:
+      type: object
+      required:
+        - sku
+        - nombre
+        - stockTotal
+        - stockMinimo
+      properties:
+        sku:
+          type: string
+        nombre:
+          type: string
+        stockTotal:
+          type: integer
+          format: int32
+          description: Suma de la referencia en todos los almacenes
+        stockMinimo:
+          type: integer
+          format: int32
+    ApiError:
+      type: object
+      required:
+        - status
+        - error
+        - message
+      properties:
+        status:
+          type: integer
+          format: int32
+        error:
+          type: string
+          example: Conflict
+        message:
+          type: string
+          example: Stock insuficiente en el almacén CENTRAL
