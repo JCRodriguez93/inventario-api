@@ -10,6 +10,8 @@ import es.scafftrix.inventarioapi.stock.repository.ReferenciaRepository;
 import es.scafftrix.inventarioapi.stock.repository.StockRepository;
 import org.openapitools.model.NivelStock;
 import org.openapitools.model.Referencia;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -20,6 +22,8 @@ import java.util.List;
 @Transactional
 @Service
 public class StockService implements StockConsulta {
+
+    private static final Logger logger = LoggerFactory.getLogger(StockService.class);
 
     private final ReferenciaRepository referencias;
     private final StockRepository stock;
@@ -73,11 +77,13 @@ public class StockService implements StockConsulta {
             fila.setAlmacen(almacen);
             fila.setCantidad(0);
         }
-        int nuevaCantidad = fila.getCantidad() + delta;
+        int cantidadAnterior = fila.getCantidad();
+        int nuevaCantidad = cantidadAnterior + delta;
         if (nuevaCantidad < 0) {
             throw new IllegalStateException("El stock de " + sku + " en " + almacen + " no puede quedar negativo");
         }
         fila.setCantidad(nuevaCantidad);
         stock.save(fila);
+        logger.debug("Stock aplicado: sku={}, almacén={}, {} -> {}", sku, almacen, cantidadAnterior, nuevaCantidad);
     }
 }

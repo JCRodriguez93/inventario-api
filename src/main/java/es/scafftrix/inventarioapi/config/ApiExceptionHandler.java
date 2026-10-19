@@ -5,6 +5,8 @@ import es.scafftrix.inventarioapi.movimientos.exception.StockInsuficienteExcepti
 import es.scafftrix.inventarioapi.stock.exception.ReferenciaDuplicadaException;
 import es.scafftrix.inventarioapi.stock.exception.ReferenciaException;
 import org.openapitools.model.ApiError;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -19,6 +21,8 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler({ReferenciaException.class, MovimientoException.class})
     public ResponseEntity<ApiError> noEncontrado(RuntimeException excepcion) {
@@ -51,10 +55,14 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> errorInterno(Exception excepcion) {
+        logger.error("Error interno no controlado: {}", excepcion.getMessage(), excepcion);
         return respuesta(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno: " + excepcion.getMessage());
     }
 
     private ResponseEntity<ApiError> respuesta(HttpStatus estado, String mensaje) {
+        if (estado.is4xxClientError()) {
+            logger.warn("HTTP {}: {}", estado.value(), mensaje);
+        }
         ApiError error = new ApiError();
         error.setStatus(estado.value());
         error.setError(estado.getReasonPhrase());

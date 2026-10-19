@@ -10,6 +10,8 @@ import org.openapitools.model.Movimiento;
 import org.openapitools.model.NivelStock;
 import org.openapitools.model.PaginaMovimientos;
 import org.openapitools.model.TipoMovimiento;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -24,6 +26,8 @@ import java.util.List;
 @Transactional
 @Service
 public class MovimientoService {
+
+    private static final Logger logger = LoggerFactory.getLogger(MovimientoService.class);
 
     private static final int TAMANO_MAXIMO_PAGINA = 100;
 
@@ -57,11 +61,16 @@ public class MovimientoService {
 
         MovimientoEntity entity = mapper.toEntity(movimiento);
         entity.setFecha(LocalDateTime.now());
-        return mapper.toModel(repository.save(entity));
+        MovimientoEntity guardado = repository.save(entity);
+        logger.info("Movimiento {} registrado: sku={}, almacén={}, cantidad={}, id={}",
+                guardado.getTipo(), guardado.getSku(), guardado.getAlmacen(),
+                guardado.getCantidad(), guardado.getId());
+        return mapper.toModel(guardado);
     }
 
     @Transactional(readOnly = true)
     public Movimiento findById(Long id) {
+        logger.debug("Buscando movimiento con id={}", id);
         return repository.findById(id)
                 .map(mapper::toModel)
                 .orElseThrow(() -> new MovimientoException("Movimiento " + id + " no encontrado"));
@@ -71,6 +80,7 @@ public class MovimientoService {
     public PaginaMovimientos findAll(Integer page, Integer size) {
         int numeroPagina = page == null ? 0 : Math.max(0, page);
         int tamano = size == null ? 20 : Math.min(Math.max(1, size), TAMANO_MAXIMO_PAGINA);
+        logger.debug("Consultando movimientos: página={}, tamaño={}", numeroPagina, tamano);
 
         Page<MovimientoEntity> resultado = repository.findAll(
                 PageRequest.of(numeroPagina, tamano, Sort.by(Sort.Direction.DESC, "id")));
